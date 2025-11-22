@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>安培力 F = n·B·I·L 实验数据绘图（3种情形）</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root { --bg:#0b0c10; --card:#111319; --muted:#aab1c5; --text:#e8ecf7; --accent:#5aa9ff; --ok:#22c55e; --warn:#f59e0b; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", Arial, sans-serif}
+    .container{max-width:1200px;margin:0 auto;padding:20px;display:grid;grid-template-columns: 420px 1fr;gap:16px}
+    h1{font-size:20px;margin:0 0 4px}
+    p.sub{margin:0 0 12px;color:var(--muted)}
+    .card{background:var(--card);border:1px solid #222638;border-radius:14px;padding:14px}
+    .row{display:flex;gap:8px;align-items:center}
+    .row.wrap{flex-wrap:wrap}
+    .tabs{display:flex;gap:8px;margin:8px 0 12px}
+    .tab{padding:8px 10px;border:1px solid #2a3144;border-radius:10px;background:#0e1118;color:var(--text);cursor:pointer}
+    .tab[aria-selected="true"]{background:#172036;border-color:#334061}
+    label{font-size:12px;color:var(--muted)}
+    input[type="number"]{width:100%;padding:8px;border-radius:10px;border:1px solid #2a3144;background:#0e1118;color:var(--text)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:separate;border-spacing:0 6px}
+    th, td{padding:8px 10px;text-align:left}
+    th{font-weight:600;color:var(--muted);border-bottom:1px dashed #2a3144}
+    td{background:#0e1118;border:1px solid #232a3b;border-left:none;border-right:none;border-radius:8px}
+    td input{width:100%;border:none;background:transparent;color:var(--text);padding:0}
+    td.derived{color:#9ad1ff}
+    .btn{padding:8px 10px;border:1px solid #2a3144;border-radius:10px;background:#0e1118;color:var(--text);cursor:pointer}
+    .btn:hover{background:#121826}
+    .btn.ghost{background:transparent}
+    .btn.ok{border-color:#124f27}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#111827;border:1px solid #2a3144;color:var(--muted);font-size:12px}
+    .kpi{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+    .kpi .card{padding:10px}
+    .kpi b{font-size:16px}
+    .hint{font-size:12px;color:var(--muted)}
+    #plot{height:520px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 左侧设置/数据 -->
+    <section class="card" id="panel-left">
+      <h1>安培力实验数据绘图（化曲为直）TTFU</h1>
+      <p class="sub">
+        模型：<b>F = n · B · I · L · sinθ</b>。<br>
+        下面提供三种典型情形：① F 随 n·L，② F 随 I，③ F 随 θ（使用 x = sinθ 线性回归）。<br>
+        <span class="muted">说明：表格中记录的是传感器读数 <b>F′</b>（反作用力），作图时自动换算 <b>F = −F′</b>。</span>
+      </p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" id="tab1" role="tab" aria-selected="true">① B、I 一定：F 随 nL 变化</button>
+        <button class="tab" id="tab2" role="tab" aria-selected="false">② B、nL 一定：F 随 I 变化</button>
+        <button class="tab" id="tab3" role="tab" aria-selected="false">③ B、I、nL 一定：F 随 sinθ 变化</button>
+      </div>
+
+      <!-- 公共常量输入 -->
+      <div class="grid-3" id="block-common">
+        <div>
+          <label>B / T（恒定）</label>
+          <input type="number" step="0.0001" id="Bval" value="0.400" />
+        </div>
+        <div id="I-fixed">
+          <label>I / A（情形①、③恒定）</label>
+          <input type="number" step="0.001" id="Ifixed" value="1.500" />
+        </div>
+        <div id="NL-fixed" style="display:none">
+          <label>n·L（情形②、③恒定，m）</label>
+          <input type="number" step="0.0001" id="NLfixed" value="0.2000" />
+        </div>
+      </div>
+
+      <!-- 情形①：F vs nL（B、I固定） -->
+      <div id="case1" style="margin-top:12px;">
+        <div class="row wrap" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="pill">情形①：B、I 恒定；学生输入 n、L 与测得 F′。系统自动计算 x = n·L，并作图 F 对 x（F=-F′）。</div>
+          <div class="row" style="gap:6px">
+            <button class="btn" id="addRow1">+ 添加一行</button>
+            <button class="btn ghost" id="clear1">清空</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>n（匝数）</th><th>L / m（有效长度）</th><th class="muted">x = n·L / m</th><th>F′ / N</th><th></th></tr>
+          </thead>
+          <tbody id="tbody1"></tbody>
+        </table>
+      </div>
+
+      <!-- 情形②：F vs I（B、NL固定） -->
+      <div id="case2" style="display:none;margin-top:12px;">
+        <div class="row wrap" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="pill">情形②：B、n·L 恒定；学生输入 I 与测得 F′。系统作图 F 对 I（F=-F′）。</div>
+          <div class="row" style="gap:6px">
+            <button class="btn" id="addRow2">+ 添加一行</button>
+            <button class="btn ghost" id="clear2">清空</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>I / A（电流）</th><th>F′ / N</th><th></th></tr>
+          </thead>
+          <tbody id="tbody2"></tbody>
+        </table>
+      </div>
+
+      <!-- 情形③：F vs θ（B、I、nL固定，绘 F–sinθ） -->
+      <div id="case3" style="display:none;margin-top:12px;">
+        <div class="row wrap" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="pill">
+            情形③：B、I、n·L 恒定；学生输入 θ（角度）与测得 F′。系统自动计算 x = sinθ，并作图 F 对 x（F=-F′）。
+          </div>
+          <div class="row" style="gap:6px">
+            <button class="btn" id="addRow3">+ 添加一行</button>
+            <button class="btn ghost" id="clear3">清空</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>θ / °（电流与磁场夹角）</th>
+              <th class="muted">x = sinθ</th>
+              <th>F′ / N</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody3"></tbody>
+        </table>
+      </div>
+
+      <div class="kpi">
+        <div class="card">
+          <div class="hint">过原点回归（以换算后的 F 作图）：y = k·x</div>
+          <div><span class="muted">k₀ = </span><b id="k-zero">—</b></div>
+          <div><span class="muted">R² = </span><b id="r2-zero">—</b></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 右侧图像 -->
+    <section class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <h2 style="margin:0;font-size:16px">函数图像</h2>
+          <div class="hint">蓝点：实验数据（已换算 F=-F′）；青线：过原点拟合。坐标自动联动当前情形。</div>
+        </div>
+        <div class="row" style="gap:6px">
+          <button class="btn" id="exportPNG">导出图像（PNG）</button>
+          <button class="btn ghost" id="resetView">重置视图</button>
+        </div>
+      </div>
+      <div id="plot"></div>
+    </section>
+  </div>
+
+  <script>
+    // —— 工具函数 ——
+    function parseNum(v){ const x = Number(v); return Number.isFinite(x) ? x : NaN; }
+    function linregThroughZero(x,y){
+      // 过原点 y = kx
+      const n = x.length; if (!n) return null;
+      let sxx=0,sxy=0; for(let i=0;i<n;i++){ sxx += x[i]*x[i]; sxy += x[i]*y[i]; }
+      const k = sxy/(sxx||1e-12);
+      // R^2（过原点的定义）
+      const yhat = x.map(v=>k*v);
+      const ssr = y.reduce((s,yi,i)=>{ const r=yi-yhat[i]; return s+r*r; },0);
+      const my = y.reduce((a,b)=>a+b,0)/n;
+      const sst = y.reduce((s,yi)=>{ const d=yi-my; return s+d*d; },0);
+      const r2 = 1 - (ssr/(sst||1e-12));
+      return {k,r2};
+    }
+
+    // —— DOM ——
+    const tab1 = document.getElementById('tab1');
+    const tab2 = document.getElementById('tab2');
+    const tab3 = document.getElementById('tab3');
+
+    const I_fixed = document.getElementById('I-fixed');
+    const NL_fixed = document.getElementById('NL-fixed');
+
+    const case1 = document.getElementById('case1');
+    const case2 = document.getElementById('case2');
+    const case3 = document.getElementById('case3');
+
+    const tbody1 = document.getElementById('tbody1');
+    const tbody2 = document.getElementById('tbody2');
+    const tbody3 = document.getElementById('tbody3');
+
+    const Bval = document.getElementById('Bval');
+    const Ifixed = document.getElementById('Ifixed');
+    const NLfixed = document.getElementById('NLfixed');
+
+    const kZeroEl = document.getElementById('k-zero');
+    const r2ZeroEl = document.getElementById('r2-zero');
+
+    const addRow1 = document.getElementById('addRow1');
+    const clear1 = document.getElementById('clear1');
+    const addRow2 = document.getElementById('addRow2');
+    const clear2 = document.getElementById('clear2');
+    const addRow3 = document.getElementById('addRow3');
+    const clear3 = document.getElementById('clear3');
+
+    const exportPNG = document.getElementById('exportPNG');
+    const resetView = document.getElementById('resetView');
+
+    // —— 选项卡逻辑 ——
+    function activate(mode){
+      const c1 = mode === 'c1';
+      const c2 = mode === 'c2';
+      const c3 = mode === 'c3';
+
+      tab1.setAttribute('aria-selected', c1);
+      tab2.setAttribute('aria-selected', c2);
+      tab3.setAttribute('aria-selected', c3);
+
+      case1.style.display = c1 ? 'block' : 'none';
+      case2.style.display = c2 ? 'block' : 'none';
+      case3.style.display = c3 ? 'block' : 'none';
+
+      // 公共常量显示：① 只用 I；② 只用 nL；③ 同时用 I 和 nL
+      I_fixed.style.display  = (c1 || c3) ? 'block' : 'none';
+      NL_fixed.style.display = (c2 || c3) ? 'block' : 'none';
+
+      plot();
+    }
+    tab1.addEventListener('click', ()=>activate('c1'));
+    tab2.addEventListener('click', ()=>activate('c2'));
+    tab3.addEventListener('click', ()=>activate('c3'));
+
+    // —— 动态表格：情形① —— 
+    function row1(n='', L='', Fp=''){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="muted">#</td>
+        <td><input type="number" step="1" min="0" placeholder="n" value="${n}"></td>
+        <td><input type="number" step="0.0001" placeholder="L(m)" value="${L}"></td>
+        <td class="derived"><span>—</span></td>
+        <td><input type="number" step="0.0001" placeholder="F′(N)" value="${Fp}"></td>
+        <td><button class="btn ghost">删除</button></td>`;
+      tbody1.appendChild(tr);
+      bindRow1(tr);
+      renumber(tbody1);
+    }
+    function bindRow1(tr){
+      const inputs = tr.querySelectorAll('input');
+      inputs.forEach(inp=>inp.addEventListener('input', ()=>{ updateRow1(tr); plot(); }));
+      tr.querySelector('button').addEventListener('click', ()=>{ tr.remove(); renumber(tbody1); plot(); });
+      updateRow1(tr);
+    }
+    function updateRow1(tr){
+      const [nInput, LInput] = tr.querySelectorAll('input');
+      const n = parseNum(nInput.value); const L = parseNum(LInput.value);
+      const xCell = tr.querySelector('.derived span');
+      const x = (Number.isFinite(n) && Number.isFinite(L)) ? n*L : NaN;
+      xCell.textContent = Number.isFinite(x) ? x.toFixed(6) : '—';
+    }
+
+    // —— 动态表格：情形② —— 
+    function row2(I='', Fp=''){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="muted">#</td>
+        <td><input type="number" step="0.001" placeholder="I(A)" value="${I}"></td>
+        <td><input type="number" step="0.0001" placeholder="F′(N)" value="${Fp}"></td>
+        <td><button class="btn ghost">删除</button></td>`;
+      tbody2.appendChild(tr);
+      bindRow2(tr);
+      renumber(tbody2);
+    }
+    function bindRow2(tr){
+      const inputs = tr.querySelectorAll('input');
+      inputs.forEach(inp=>inp.addEventListener('input', ()=>{ plot(); }));
+      tr.querySelector('button').addEventListener('click', ()=>{ tr.remove(); renumber(tbody2); plot(); });
+    }
+
+    // —— 动态表格：情形③ —— 
+    function row3(theta='', Fp=''){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="muted">#</td>
+        <td><input type="number" step="0.1" placeholder="θ(°)" value="${theta}"></td>
+        <td class="derived"><span>—</span></td>
+        <td><input type="number" step="0.0001" placeholder="F′(N)" value="${Fp}"></td>
+        <td><button class="btn ghost">删除</button></td>`;
+      tbody3.appendChild(tr);
+      bindRow3(tr);
+      renumber(tbody3);
+    }
+    function bindRow3(tr){
+      const inputs = tr.querySelectorAll('input');
+      inputs.forEach(inp=>inp.addEventListener('input', ()=>{ updateRow3(tr); plot(); }));
+      tr.querySelector('button').addEventListener('click', ()=>{ tr.remove(); renumber(tbody3); plot(); });
+      updateRow3(tr);
+    }
+    function updateRow3(tr){
+      const thetaInput = tr.querySelectorAll('input')[0];
+      const theta = parseNum(thetaInput.value);
+      const xCell = tr.querySelector('.derived span');
+      const x = Number.isFinite(theta) ? Math.sin(theta * Math.PI / 180) : NaN;
+      xCell.textContent = Number.isFinite(x) ? x.toFixed(6) : '—';
+    }
+
+    function renumber(tbody){
+      [...tbody.querySelectorAll('tr')].forEach((tr,i)=>{
+        tr.children[0].textContent = String(i+1).padStart(2,'0');
+      });
+    }
+
+    addRow1.addEventListener('click', ()=> row1());
+    clear1.addEventListener('click', ()=>{ tbody1.innerHTML=''; plot(); });
+    addRow2.addEventListener('click', ()=> row2());
+    clear2.addEventListener('click', ()=>{ tbody2.innerHTML=''; plot(); });
+    addRow3.addEventListener('click', ()=> row3());
+    clear3.addEventListener('click', ()=>{ tbody3.innerHTML=''; plot(); });
+
+    // 初始几行示例（这里的 F′ 为记录值）
+    row1(20, 0.020, 0.240);
+    row1(25, 0.020, 0.300);
+    row2(0.8, 0.180);
+    row2(1.2, 0.270);
+    row3(0,   0.000);
+    row3(30,  0.150);
+
+    // —— 绘图 ——
+    const PLOT = document.getElementById('plot');
+
+    function getData(){
+      const B = parseNum(Bval.value);
+      const Ifix = parseNum(Ifixed.value);
+      const NLfix = parseNum(NLfixed.value);
+
+      const useCase1 = (case1.style.display !== 'none');
+      const useCase2 = (case2.style.display !== 'none');
+      const useCase3 = (case3.style.display !== 'none');
+
+      if (useCase1){
+        // x = n·L, y = F = -F′
+        const x=[], y=[];
+        [...tbody1.querySelectorAll('tr')].forEach(tr=>{
+          const tds = tr.querySelectorAll('td');
+          const n = parseNum(tds[1].querySelector('input').value);
+          const L = parseNum(tds[2].querySelector('input').value);
+          const Fp = parseNum(tds[4].querySelector('input').value); // 记录值 F′
+          const xv = Number.isFinite(n)&&Number.isFinite(L)? n*L : NaN;
+          if (Number.isFinite(xv) && Number.isFinite(Fp)) { x.push(xv); y.push(-Fp); }
+        });
+        return { mode:'c1', B, Ifix, NLfix, x, y, xlabel:'x = n·L (m)', ylabel:'F (N)'};
+      } else if (useCase2){
+        // x = I, y = F = -F′
+        const x=[], y=[];
+        [...tbody2.querySelectorAll('tr')].forEach(tr=>{
+          const tds = tr.querySelectorAll('td');
+          const I = parseNum(tds[1].querySelector('input').value);
+          const Fp = parseNum(tds[2].querySelector('input').value);
+          if (Number.isFinite(I) && Number.isFinite(Fp)) { x.push(I); y.push(-Fp); }
+        });
+        return { mode:'c2', B, Ifix, NLfix, x, y, xlabel:'x = I (A)', ylabel:'F (N)'};
+      } else {
+        // 情形③：x = sinθ, y = F = -F′
+        const x=[], y=[];
+        [...tbody3.querySelectorAll('tr')].forEach(tr=>{
+          const tds = tr.querySelectorAll('td');
+          const theta = parseNum(tds[1].querySelector('input').value);
+          const Fp = parseNum(tds[3].querySelector('input').value);
+          const xv = Number.isFinite(theta) ? Math.sin(theta * Math.PI / 180) : NaN;
+          if (Number.isFinite(xv) && Number.isFinite(Fp)) { x.push(xv); y.push(-Fp); }
+        });
+        return { mode:'c3', B, Ifix, NLfix, x, y, xlabel:'x = sinθ', ylabel:'F (N)'};
+      }
+    }
+
+    function plot(){
+      const d = getData();
+      const x = d.x, y = d.y;
+
+      // 仅过原点回归
+      const regZero = (x.length>=1) ? linregThroughZero(x,y) : null;
+
+      // KPI
+      kZeroEl.textContent = regZero? regZero.k.toFixed(6) : '—';
+      r2ZeroEl.textContent = regZero? Math.max(0,Math.min(1,regZero.r2)).toFixed(5) : '—';
+
+      // 曲线与散点
+      const traces = [];
+      traces.push({ x, y, type:'scatter', mode:'markers', name:'实验数据（F=-F′）', marker:{color:'#60a5fa', size:9} });
+
+      if (regZero){
+        // 让拟合线覆盖负半轴和正半轴，并确保经过 0
+        let xmin = Math.min(...x);
+        let xmax = Math.max(...x);
+
+        if (xmin > 0) xmin = 0;
+        if (xmax < 0) xmax = 0;
+
+        const span = (xmax - xmin) || 1;
+        const pad = 0.05 * span;           // 两端留 5% 余量
+        const xx = [xmin - pad, xmax + pad];
+
+        traces.push({
+          x: xx,
+          y: xx.map(v => regZero.k * v),
+          type: 'scatter',
+          mode: 'lines',
+          name: '过原点拟合',
+          line: {color:'#22d3ee'}
+        });
+      }
+
+      let title;
+      if (d.mode === 'c1'){
+        title = `情形①  F 对 x（x = n·L），B=${d.B ?? '—'} T，I=${d.Ifix ?? '—'} A`;
+      } else if (d.mode === 'c2'){
+        title = `情形②  F 对 x（x = I），B=${d.B ?? '—'} T，n·L=${d.NLfix ?? '—'} m`;
+      } else {
+        title = `情形③  F 对 x（x = sinθ），B=${d.B ?? '—'} T，I=${d.Ifix ?? '—'} A，n·L=${d.NLfix ?? '—'} m`;
+      }
+
+      const layout = {
+        title: {text:title, font:{size:14,color:'#c9d4f3'}},
+        paper_bgcolor:'#111319', plot_bgcolor:'#0e1118',
+        xaxis:{title:d.xlabel, gridcolor:'#1e2433', zerolinecolor:'#2a3144', color:'#c9d4f3'},
+        yaxis:{title:d.ylabel, gridcolor:'#1e2433', zerolinecolor:'#2a3144', color:'#c9d4f3'},
+        margin:{l:60,r:20,t:50,b:50},
+        legend:{orientation:'h', y:1.08, x:0}
+      };
+      Plotly.react(PLOT, traces, layout, {displaylogo:false,responsive:true});
+    }
+
+    // 输入联动
+    [Bval, Ifixed, NLfixed].forEach(el=> el.addEventListener('input', plot));
+
+    // 导出与重置
+    exportPNG.addEventListener('click', ()=>{
+      Plotly.downloadImage(PLOT, {format:'png', width:1000, height:600, filename:'F-vs-x'});
+    });
+    resetView.addEventListener('click', ()=> plot());
+
+    // 首次渲染
+    plot();
+  </script>
+</body>
+</html>
